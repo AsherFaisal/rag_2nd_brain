@@ -8,8 +8,6 @@ from pinecone import Pinecone
 from langchain_openai import OpenAIEmbeddings
 from langchain import hub
 from langchain.chat_models import init_chat_model
-from langgraph.graph import START, StateGraph
-from IPython.display import Image, display
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from typing_extensions import List, TypedDict
@@ -17,7 +15,10 @@ from typing_extensions import List, TypedDict
 load_dotenv()
 
 template = """
-You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
+You are a helpful AI assistant. Your task is to:
+1. Always cite your sources by referring to the specific parts of the document you used.
+2. If you don't know the answer, just say that you don't know. 
+3. Keep responses concise and focused.
 Question: {question} 
 Context: {context} 
 Answer:
@@ -62,7 +63,7 @@ def initialize_prompt():
     return hub.pull("rlm/rag-prompt")
 
 def initialize_llm():
-    llm = init_chat_model("gpt-4o-mini", model_provider="openai")
+    llm = init_chat_model("o3-mini", model_provider="openai")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return llm, embeddings
 
