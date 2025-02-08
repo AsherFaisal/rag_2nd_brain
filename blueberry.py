@@ -11,6 +11,11 @@ from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from typing_extensions import List, TypedDict
+import logging
+import textwrap
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 load_dotenv()
 
@@ -90,27 +95,59 @@ def answer_question(question, documents):
     response = llm.invoke(messages)
     return response.content
 
+def _text_wrap(text: str, width: int = 120) -> str:
+    """Wrap text for better formatting"""
+    return textwrap.fill(text, width=width)
+
 # Initialize components
 check_openai_api_key()
 vector_store = initialize_pinecone()
 llm, embeddings = initialize_llm()
 prompt = initialize_prompt()
 
+# Example usage
+if __name__ == "__main__":
+    try:
+        # Load PDF with better error handling
+        while True:
+            try:
+                pdf_path = input("\nEnter the path to your PDF file (or 'exit' to quit): ")
+                if pdf_path.lower() == 'exit':
+                    break
 
-# Streamlit UI for uploading PDF and asking questions
-uploaded_file = st.file_uploader("Upload PDF", type="pdf", accept_multiple_files=False)
+                documents = load_pdf(pdf_path)
+                chunked_documents = split_text(documents)
+                index_docs(chunked_documents)
 
-if uploaded_file:
-    upload_pdf(uploaded_file)
-    documents = load_pdf(pdfs_directory + uploaded_file.name)
-    chunked_documents = split_text(documents)
-    index_docs(chunked_documents)
+                print(f"\nPDF loaded successfully! You can now ask questions about: {pdf_path}")
 
-question = st.chat_input()
+                # Interactive query loop
+                while True:
+                    try:
+                        question = input("\nEnter your question (or 'exit' to quit): ").strip()
+                        if not question:
+                            continue
+                        if question.lower() == 'exit':
+                            break
 
-if question:
-    st.chat_message("user").write(question)
-    related_documents = retrieve_docs(question)
-    answer = answer_question(question, related_documents)
-    st.chat_message("assistant").write(answer)
+                        print("\nProcessing your question...\n")
+                        related_documents = retrieve_docs(question)
+                        answer = answer_question(question, related_documents)
+                        print("\nAnswer:", _text_wrap(answer))
+
+                    except Exception as e:
+                        print(f"\nError during query: {str(e)}")
+                        print("Please try another question.")
+
+                break  # Break the loop if PDF loads successfully
+
+            except Exception as e:
+                print(f"\nError: {str(e)}")
+                print("Please try again with a different PDF file.\n")
+                input("Press Enter to continue...")
+
+    except KeyboardInterrupt:
+        print("\nProgram terminated by user.")
+    except Exception as e:
+        print(f"\nUnexpected error: {str(e)}")
 
