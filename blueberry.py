@@ -10,10 +10,18 @@ from langchain import hub
 from langchain.chat_models import init_chat_model
 from langgraph.graph import START, StateGraph
 from IPython.display import Image, display
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from typing_extensions import List, TypedDict
 
 load_dotenv()
+
+template = """
+You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.
+Question: {question} 
+Context: {context} 
+Answer:
+"""
 
 pdfs_directory = 'data/'
 
@@ -50,26 +58,19 @@ def initialize_pinecone():
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return PineconeVectorStore(embedding=embeddings, index=index)
 
-def index_docs(documents):
-    vector_store.add_documents(documents)
-
-def retrieve_docs(query):
-    return vector_store.similarity_search(query)
-
 def initialize_prompt():
     return hub.pull("rlm/rag-prompt")
-
-def example_messages(prompt):
-    messages = prompt.invoke(
-        {"context": "(context goes here)", "question": "(question goes here)"}
-    ).to_messages()
-    assert len(messages) == 1
-    return messages[0].content
 
 def initialize_llm():
     llm = init_chat_model("gpt-4o-mini", model_provider="openai")
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     return llm, embeddings
+
+def index_docs(documents):
+    vector_store.add_documents(documents)
+
+def retrieve_docs(query):
+    return vector_store.similarity_search(query)
 
 def retrieve(state: State):
     retrieved_docs = vector_store.similarity_search(state["question"])
@@ -83,9 +84,10 @@ def generate(state: State):
 
 def answer_question(question, documents):
     context = "\n\n".join([doc.page_content for doc in documents])
-    prompt = ChatPromptTemplate.from_template(template)
-    chain = prompt | model
-    return chain.invoke({"question": question, "context": context})
+    prompt_template = ChatPromptTemplate.from_template(template)
+    messages = prompt_template.invoke({"question": question, "context": context})
+    response = llm.invoke(messages)
+    return response.content
 
 # Initialize components
 check_openai_api_key()
@@ -93,17 +95,21 @@ vector_store = initialize_pinecone()
 llm, embeddings = initialize_llm()
 prompt = initialize_prompt()
 
-# Build and compile the state graph
-graph_builder = StateGraph(State).add_sequence([retrieve, generate])
-graph_builder.add_edge(START, "retrieve")
-graph = graph_builder.compile()
 
-# Display the graph
-display(Image(graph.get_graph().draw_mermaid_png()))
+# Streamlit UI for uploading PDF and asking questions
+uploaded_file = st.file_uploader("Upload PDF", type="pdf", accept_multiple_files=False)
 
-# Invoke the graph with a sample question
-result = graph.invoke({"question": "What is Task Decomposition?"})
+if uploaded_file:
+    upload_pdf(uploaded_file)
+    documents = load_pdf(pdfs_directory + uploaded_file.name)
+    chunked_documents = split_text(documents)
+    index_docs(chunked_documents)
 
-# Print the result
-print(f'Context: {result["context"]}\n\n')
-print(f'Answer: {result["answer"]}')
+question = st.chat_input()
+
+if question:
+    st.chat_message("user").write(question)
+    related_documents = retrieve_docs(question)
+    answer = answer_question(question, related_documents)
+    st.chat_message("assistant").write(answer)
+
