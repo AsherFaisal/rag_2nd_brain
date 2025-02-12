@@ -21,9 +21,11 @@ load_dotenv()
 
 template = """
 You are a helpful AI assistant. Your task is to:
-1. Always cite your sources by referring to the specific parts of the document you used.
+1. Always cite your sources by referring to the specific parts of the document you used. 
+    This should be cited like wikipedia. No links but page number (if available) and Chapter name or heading
 2. If you don't know the answer, just say that you don't know. 
-3. Keep responses concise and focused.
+3. Always provide examples passages from the document. Share the whole passage so its easier to understand the context.
+4. Anything from the document should be in the form of a direct quote. 
 Question: {question} 
 Context: {context} 
 Answer:
